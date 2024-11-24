@@ -34,6 +34,10 @@ args = "Run Tests"
 task = "workflow.run"
 args = "Watch Tests"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "E2E Tests"
+
 [[workflows.workflow]]
 name = "Development Server"
 author = "agent"
@@ -76,3 +80,18 @@ task = "packager.installForAll"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "npx vitest"
+
+[[workflows.workflow]]
+name = "E2E Tests"
+author = "agent"
+
+[workflows.workflow.metadata]
+agentRequireRestartOnSave = false
+
+[[workflows.workflow.tasks]]
+task = "packager.installForAll"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npx playwright test"
+waitForPort = 5000
