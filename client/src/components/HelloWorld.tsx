@@ -5,7 +5,7 @@ export function HelloWorld() {
 		<Card className="w-[300px]">
 			<CardContent className="pt-6">
 				<h1 className="text-2xl font-bold text-center text-primary">
-					Helloworld
+					Hello World !
 				</h1>
 			</CardContent>
 		</Card>
