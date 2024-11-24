@@ -1,82 +1,90 @@
-import { createServer } from "http";
-import express, {
-	type Request,
-	type Response,
-	type NextFunction,
-} from "express";
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { logger } from "hono/logger";
+import { serveStatic } from "@hono/node-server/serve-static";
 import { registerRoutes } from "./routes";
-import { serveStatic, setupVite } from "./vite";
+import fs from "node:fs/promises";
+import path from "node:path";
 
-function log(message: string) {
-	const formattedTime = new Date().toLocaleTimeString("en-US", {
+function formatTime() {
+	return new Date().toLocaleTimeString("en-US", {
 		hour: "2-digit",
 		minute: "2-digit",
 		second: "2-digit",
 		hour12: true,
 	});
-
-	console.log(`${formattedTime} [express] ${message}`);
 }
 
-const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+const app = new Hono();
 
-app.use((req, res, next) => {
-	const start = Date.now();
-	const path = req.path;
-	let capturedJsonResponse: Record<string, any> | undefined = undefined;
+// Logger middleware
+app.use("*", logger((message: string) => {
+	if (message.includes("/api")) {
+		console.log(`${formatTime()} [hono] ${message}`);
+	}
+}));
 
-	const originalResJson = res.json;
-	res.json = (bodyJson, ...args) => {
-		capturedJsonResponse = bodyJson;
-		return originalResJson.apply(res, [bodyJson, ...args]);
-	};
-
-	res.on("finish", () => {
-		const duration = Date.now() - start;
-		if (path.startsWith("/api")) {
-			let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-			if (capturedJsonResponse) {
-				logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-			}
-
-			if (logLine.length > 80) {
-				logLine = logLine.slice(0, 79) + "…";
-			}
-
-			log(logLine);
-		}
-	});
-
-	next();
+// JSON body parser middleware
+app.use("*", async (c: any, next: any) => {
+	if (c.req.header("content-type")?.includes("application/json")) {
+		const body = await c.req.json();
+		c.set("requestBody", body);
+	}
+	await next();
 });
 
-(async () => {
-	registerRoutes(app);
-	const server = createServer(app);
+// Error handling middleware
+app.onError((err: any, c: any) => {
+	const status = err.status || 500;
+	const message = err.message || "Internal Server Error";
+	return c.json({ message }, status);
+});
 
-	app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-		const status = err.status || err.statusCode || 500;
-		const message = err.message || "Internal Server Error";
+// Register API routes
+registerRoutes(app);
 
-		res.status(status).json({ message });
-		throw err;
+// Serve static files
+if (process.env.NODE_ENV === "production") {
+	app.use("/*", serveStatic({ root: "./dist/public" }));
+} else {
+	// In development, proxy requests to Vite dev server
+	app.use("*", async (c, next) => {
+		if (c.req.path.startsWith("/api")) {
+			return next();
+		}
+
+		try {
+			const viteDevServerUrl = "http://localhost:3000";
+			const url = new URL(c.req.path, viteDevServerUrl);
+
+			let body: BodyInit | undefined;
+			if (c.req.method !== "GET" && c.req.method !== "HEAD") {
+				const arrayBuffer = await c.req.raw.arrayBuffer();
+				body = arrayBuffer;
+			}
+
+			const response = await fetch(url.toString(), {
+				method: c.req.method,
+				headers: c.req.header(),
+				body,
+			});
+
+			return new Response(response.body, {
+				status: response.status,
+				headers: response.headers,
+			});
+		} catch (error) {
+			console.error("Error proxying to Vite dev server:", error);
+			return c.text("Internal Server Error", 500);
+		}
 	});
+}
 
-	// importantly only setup vite in development and after
-	// setting up all the other routes so the catch-all route
-	// doesn't interfere with the other routes
-	if (app.get("env") === "development") {
-		await setupVite(app, server);
-	} else {
-		serveStatic(app);
-	}
-
-	// ALWAYS serve the app on port 5000
-	// this serves both the API and the client
-	const PORT = 5000;
-	server.listen(PORT, "0.0.0.0", () => {
-		log(`serving on port ${PORT}`);
-	});
-})();
+// Start server
+const PORT = process.env.PORT || 5000;
+serve({
+	fetch: app.fetch,
+	port: Number(PORT),
+}, (info) => {
+	console.log(`${formatTime()} [hono] serving on port ${info.port}`);
+});

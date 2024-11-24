@@ -1,1 +1,5 @@
-
+{pkgs}: {
+  deps = [
+    pkgs.nodejs
+  ];
+}
