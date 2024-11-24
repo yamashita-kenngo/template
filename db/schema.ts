@@ -1,11 +1,11 @@
-import { pgTable, text, integer } from "drizzle-orm/pg-core";
+import { integer, pgTable, text } from "drizzle-orm/pg-core";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
-import { z } from "zod";
+import type { z } from "zod";
 
 export const users = pgTable("users", {
-  id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  username: text("username").unique().notNull(),
-  password: text("password").notNull(),
+	id: integer().primaryKey().generatedAlwaysAsIdentity(),
+	username: text("username").unique().notNull(),
+	password: text("password").notNull(),
 });
 
 export const insertUserSchema = createInsertSchema(users);
