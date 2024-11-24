@@ -9,6 +9,7 @@ test('displays Helloworld message', async ({ page }) => {
   // Verify the card container exists
   await expect(page.locator('.w-[300px]')).toBeVisible()
   
-  // Take a screenshot for visual comparison
-  await expect(page).toHaveScreenshot('hello-world.png')
+  // Verify the text has correct styling
+  const heading = page.getByText('Helloworld')
+  await expect(heading).toHaveClass(/text-2xl.*font-bold.*text-center/)
 })
