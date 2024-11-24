@@ -65,7 +65,7 @@ task = "packager.installForAll"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npx vitest run"
+args = "node --experimental-vm-modules node_modules/vitest/vitest.mjs run"
 
 [[workflows.workflow]]
 name = "Watch Tests"
